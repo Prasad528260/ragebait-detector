@@ -307,7 +307,7 @@ if analyze_button and tweet_input.strip():
         </span>
         """
 
-    st.markdown(
+    st.write(
         f"<div style='line-height: 2.5;'>{word_html}</div>",
         unsafe_allow_html=True
     )
