@@ -3,7 +3,8 @@ import torch
 import numpy as np
 import pickle
 import re
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
+import requests
+import json
 
 # ================================================================
 # PAGE CONFIG
@@ -15,26 +16,47 @@ st.set_page_config(
 )
 
 # ================================================================
-# LOAD MODEL — only loads once, cached for performance
+# FIREBASE PERMANENT COUNTER
+# ================================================================
+FIREBASE_URL = "https://ragebait-detector-default-rtdb.firebaseio.com"
+
+def get_count():
+    try:
+        response = requests.get(
+            f"{FIREBASE_URL}/count.json",
+            timeout=5
+        )
+        value = response.json()
+        return int(value) if value else 0
+    except:
+        return 0
+
+def increment_count():
+    try:
+        current = get_count()
+        new_count = current + 1
+        requests.put(
+            f"{FIREBASE_URL}/count.json",
+            data=json.dumps(new_count),
+            timeout=5
+        )
+        return new_count
+    except:
+        return get_count()
+
+# ================================================================
+# LOAD MODEL
 # ================================================================
 @st.cache_resource
 def load_models():
-    """
-    Cache decorator means this function only runs ONCE
-    even if the user interacts with the app multiple times.
-    Without caching, model reloads on every button click = very slow.
-    """
-    # Load BERTweet from Hugging Face directly
-    # No need to upload the whole model folder
-    tokenizer = AutoTokenizer.from_pretrained("vinai/bertweet-base")
+    from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
+    tokenizer = AutoTokenizer.from_pretrained("vinai/bertweet-base")
     model = AutoModelForSequenceClassification.from_pretrained(
         "vinai/bertweet-base",
         num_labels=2
     )
 
-    # Load your fine tuned weights
-    # These are saved in the models/ folder in your repo
     with open("models/hybrid_classifier.pkl", "rb") as f:
         hybrid_clf = pickle.load(f)
 
@@ -48,13 +70,9 @@ def load_models():
     return tokenizer, model, hybrid_clf, scaler, device
 
 # ================================================================
-# FEATURE EXTRACTION FUNCTIONS
+# FEATURE FUNCTIONS
 # ================================================================
 def get_bertweet_embedding(text, tokenizer, model, device):
-    """
-    Convert tweet text into 768 numbers using BERTweet.
-    These numbers capture the deep meaning of the tweet.
-    """
     inputs = tokenizer(
         text,
         truncation=True,
@@ -65,31 +83,29 @@ def get_bertweet_embedding(text, tokenizer, model, device):
 
     with torch.no_grad():
         outputs = model.base_model(**inputs)
-        # CLS token = summary of entire tweet
         embedding = outputs.last_hidden_state[:, 0, :].cpu().numpy()
 
     return embedding
 
 
 def get_handcrafted_features(text):
-    """
-    Extract 7 explicit signals we discovered during EDA.
-    These complement BERTweet's deep understanding
-    with surface level ragebait signals.
-    """
     text_lower = text.lower()
 
     caps_ratio = sum(1 for c in text if c.isupper()) / max(len(text), 1)
     exclamation_count = text.count("!")
     question_count = text.count("?")
-    has_lol = int(bool(re.search(r"\blol\b|\blmao\b|\blmaooo\b", text_lower)))
+    has_lol = int(bool(re.search(
+        r"\blol\b|\blmao\b|\blmaooo\b", text_lower
+    )))
     has_trigger_words = int(bool(re.search(
         r"overrated|finished|delusional|fraud|pathetic|"
         r"embarrassing|cooked|worst|imagine|always|never",
         text_lower
     )))
     word_count = len(text.split())
-    has_ragebait_emoji = int(bool(re.search(r"😂|💀|🤣|😭|🙄", text)))
+    has_ragebait_emoji = int(bool(re.search(
+        r"😂|💀|🤣|😭|🙄", text
+    )))
 
     return np.array([[
         caps_ratio,
@@ -103,38 +119,17 @@ def get_handcrafted_features(text):
 
 
 def predict_tweet(text, tokenizer, model, hybrid_clf, scaler, device):
-    """
-    Full prediction pipeline:
-    1. Get BERTweet embedding (768 numbers)
-    2. Get handcrafted features (7 numbers)
-    3. Scale handcrafted features
-    4. Combine both (775 numbers)
-    5. Classify with hybrid model
-    """
-    # Step 1: BERTweet embedding
     embedding = get_bertweet_embedding(text, tokenizer, model, device)
-
-    # Step 2 + 3: Handcrafted features scaled
     hc_features = get_handcrafted_features(text)
     hc_scaled = scaler.transform(hc_features)
-
-    # Step 4: Combine
     combined = np.hstack([embedding, hc_scaled])
-
-    # Step 5: Predict
     prediction = hybrid_clf.predict(combined)[0]
     probability = hybrid_clf.predict_proba(combined)[0]
     confidence = probability[prediction] * 100
-
     return prediction, confidence
 
 
 def get_word_importance(text, tokenizer, model, device):
-    """
-    Measure each word's contribution to the prediction
-    by removing it and seeing how much the ragebait
-    probability changes. Same concept as SHAP.
-    """
     inputs = tokenizer(
         text,
         truncation=True,
@@ -185,17 +180,27 @@ Detect whether a football tweet is **ragebait** or a **genuine opinion**
 using a fine-tuned BERTweet model trained on football Twitter.
 """)
 
+# Live counter
+total = get_count()
+col_a, col_b, col_c = st.columns(3)
+with col_a:
+    st.metric("🔍 Tweets Analyzed", f"{total:,}")
+with col_b:
+    st.metric("🎯 F1 Score", "0.97")
+with col_c:
+    st.metric("⚽ Domain", "Football Twitter")
+
 st.divider()
 
 # ================================================================
-# UI — EXAMPLES (helps users understand what to test)
+# UI — EXAMPLES
 # ================================================================
 st.markdown("#### 💡 Try an example or write your own:")
 
 col1, col2 = st.columns(2)
 
 with col1:
-    st.markdown("**Ragebait examples:**")
+    st.markdown("**🚨 Ragebait examples:**")
     if st.button("Messi is finished lmaooo 😂"):
         st.session_state.tweet_input = "Messi is finished lmaooo 😂"
     if st.button("Arsenal ALWAYS bottle it 💀"):
@@ -204,7 +209,7 @@ with col1:
         st.session_state.tweet_input = "Ronaldo in Saudi = career over"
 
 with col2:
-    st.markdown("**Genuine examples:**")
+    st.markdown("**✅ Genuine examples:**")
     if st.button("Slot's pressing setup was impressive"):
         st.session_state.tweet_input = "Slot's pressing setup was impressive"
     if st.button("Mbappe's movement has improved"):
@@ -213,7 +218,7 @@ with col2:
         st.session_state.tweet_input = "Tactical battle was fascinating today"
 
 # ================================================================
-# UI — INPUT BOX
+# UI — INPUT
 # ================================================================
 tweet_input = st.text_area(
     "Or type your own tweet:",
@@ -225,11 +230,10 @@ tweet_input = st.text_area(
 analyze_button = st.button("🔍 Analyze Tweet", type="primary")
 
 # ================================================================
-# UI — PREDICTION OUTPUT
+# UI — PREDICTION
 # ================================================================
 if analyze_button and tweet_input.strip():
 
-    # Load models (cached after first load)
     with st.spinner("Loading models... (first run takes ~30 seconds)"):
         tokenizer, model, hybrid_clf, scaler, device = load_models()
 
@@ -239,9 +243,12 @@ if analyze_button and tweet_input.strip():
             hybrid_clf, scaler, device
         )
 
+    # Increment permanent counter
+    increment_count()
+
     st.divider()
 
-    # Result display
+    # Result
     if prediction == 1:
         st.error(f"🚨 RAGEBAIT — {confidence:.1f}% confidence")
         st.markdown("""
@@ -256,7 +263,7 @@ if analyze_button and tweet_input.strip():
         expressing a real view without intentional provocation.
         """)
 
-    # Confidence bar
+    # Confidence breakdown
     st.markdown("#### Confidence Breakdown")
     col1, col2 = st.columns(2)
     with col1:
@@ -266,7 +273,7 @@ if analyze_button and tweet_input.strip():
         ragebait_conf = confidence/100 if prediction == 1 else (1 - confidence/100)
         st.metric("Ragebait", f"{ragebait_conf*100:.1f}%")
 
-    # Word importance section
+    # Word importance
     st.divider()
     st.markdown("#### 🔍 Why did the model decide this?")
     st.markdown(
@@ -279,44 +286,36 @@ if analyze_button and tweet_input.strip():
             tweet_input, tokenizer, model, device
         )
 
-    # Display word importance as colored text
+    # Colored word display
     word_html = ""
     max_imp = max(abs(v) for v in importance) if importance else 1
 
     for word, imp in zip(words, importance):
         normalized = imp / max_imp if max_imp > 0 else 0
         if normalized > 0.1:
-            # Red — ragebait signal
             intensity = min(int(normalized * 200), 200)
             color = f"rgb(255, {255-intensity}, {255-intensity})"
         elif normalized < -0.1:
-            # Green — genuine signal
             intensity = min(int(abs(normalized) * 200), 200)
             color = f"rgb({255-intensity}, 255, {255-intensity})"
         else:
             color = "transparent"
 
-        word_html += f"""
-        <span style='background-color: {color};
-                     padding: 3px 6px;
-                     margin: 3px;
-                     border-radius: 4px;
-                     font-size: 16px;
-                     display: inline-block;'>
-            {word}
-        </span>
-        """
+        word_html += f"""<span style='background-color: {color};
+                     padding: 3px 6px; margin: 3px;
+                     border-radius: 4px; font-size: 16px;
+                     display: inline-block;'>{word}</span>"""
 
-    st.write(
-        f"<div style='line-height: 2.5;'>{word_html}</div>",
-        unsafe_allow_html=True
+    st.components.v1.html(
+        f"<div style='line-height:2.5; font-family:sans-serif;'>{word_html}</div>",
+        height=150
     )
 
 elif analyze_button and not tweet_input.strip():
     st.warning("Please enter a tweet first!")
 
 # ================================================================
-# UI — FOOTER
+# FOOTER
 # ================================================================
 st.divider()
 st.markdown("""
