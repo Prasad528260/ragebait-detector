@@ -201,21 +201,21 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.markdown("**🚨 Ragebait examples:**")
-    if st.button("Messi is finished lmaooo 😂"):
-        st.session_state.tweet_input = "Messi is finished lmaooo 😂"
-    if st.button("Arsenal ALWAYS bottle it 💀"):
-        st.session_state.tweet_input = "Arsenal ALWAYS bottle it 💀"
-    if st.button("Ronaldo in Saudi = career over"):
-        st.session_state.tweet_input = "Ronaldo in Saudi = career over"
+    if st.button("How is Messi even in the GOAT conversation he flopped at PSG lmaooo"):
+        st.session_state.tweet_input = "How is Messi even in the GOAT conversation he flopped at PSG lmaooo"
+    if st.button("Haaland is literally just tall. Put him in a team without De Bruyne and he's League One level"):
+        st.session_state.tweet_input = "Haaland is literally just tall. Put him in a team without De Bruyne and he's League One level"
+    if st.button("Ronaldo fans really woke up today to defend a 39 year old playing in a league with no defenders lmao"):
+        st.session_state.tweet_input = "Ronaldo fans really woke up today to defend a 39 year old playing in a league with no defenders lmao"
 
 with col2:
     st.markdown("**✅ Genuine examples:**")
-    if st.button("Slot's pressing setup was impressive"):
-        st.session_state.tweet_input = "Slot's pressing setup was impressive"
+    if st.button("Arsenal ALWAYS bottle it"):
+        st.session_state.tweet_input = "Arsenal ALWAYS bottle it"
     if st.button("Mbappe's movement has improved"):
         st.session_state.tweet_input = "Mbappe's movement has improved"
-    if st.button("Tactical battle was fascinating today"):
-        st.session_state.tweet_input = "Tactical battle was fascinating today"
+    if st.button("Ronaldo's work ethic throughout his career is genuinely something every young player should study"):
+        st.session_state.tweet_input = "Ronaldo's work ethic throughout his career is genuinely something every young player should study"
 
 # ================================================================
 # UI — INPUT
