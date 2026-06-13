@@ -201,8 +201,8 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.markdown("**🚨 Ragebait examples:**")
-    if st.button("Messi would have zero Ballon d'Ors without Barcelona's system"):
-        st.session_state.tweet_input = "Messi would have zero Ballon d'Ors without Barcelona's system"
+    if st.button("France's depth of talent means they remain genuine World Cup contenders for the foreseeable future"):
+        st.session_state.tweet_input = "France's depth of talent means they remain genuine World Cup contenders for the foreseeable future"
     if st.button("Haaland is literally just tall. Put him in a team without De Bruyne and he's League One level"):
         st.session_state.tweet_input = "Haaland is literally just tall. Put him in a team without De Bruyne and he's League One level"
     if st.button("Ronaldo fans really woke up today to defend a 39 year old playing in a league with no defenders lmao"):
